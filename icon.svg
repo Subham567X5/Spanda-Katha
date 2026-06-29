@@ -1,0 +1,53 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="75%">
+      <stop offset="0%" stop-color="#0a1530"/>
+      <stop offset="60%" stop-color="#05060f"/>
+      <stop offset="100%" stop-color="#020208"/>
+    </radialGradient>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7af6ff"/>
+      <stop offset="100%" stop-color="#00a8c8"/>
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="16" y="16" width="480" height="480" rx="104" ry="104" fill="url(#bg)" stroke="#0bd3ee" stroke-opacity="0.35" stroke-width="2"/>
+
+  <!-- Subtle inner grid lines -->
+  <g stroke="#1b3a55" stroke-opacity="0.35" stroke-width="1.5">
+    <line x1="96" y1="150" x2="416" y2="150"/>
+    <line x1="96" y1="362" x2="416" y2="362"/>
+    <line x1="170" y1="96" x2="170" y2="416"/>
+    <line x1="342" y1="96" x2="342" y2="416"/>
+  </g>
+
+  <!-- Open book "Elysium" mark -->
+  <g filter="url(#shadow)">
+    <!-- Book spine center -->
+    <path d="M256 150 L256 372" stroke="url(#glow)" stroke-width="6" stroke-linecap="round"/>
+    <!-- Left page -->
+    <path d="M256 162 C 210 142, 160 144, 120 160 L 120 360 C 160 344, 210 342, 256 362 Z"
+          fill="#0c2236" stroke="url(#glow)" stroke-width="6" stroke-linejoin="round"/>
+    <!-- Right page -->
+    <path d="M256 162 C 302 142, 352 144, 392 160 L 392 360 C 352 344, 302 342, 256 362 Z"
+          fill="#0c2236" stroke="url(#glow)" stroke-width="6" stroke-linejoin="round"/>
+    <!-- Text lines -->
+    <g stroke="#5fdfee" stroke-width="5" stroke-linecap="round" stroke-opacity="0.8">
+      <line x1="150" y1="210" x2="236" y2="224"/>
+      <line x1="150" y1="245" x2="236" y2="259"/>
+      <line x1="150" y1="280" x2="220" y2="291"/>
+      <line x1="276" y1="224" x2="362" y2="210"/>
+      <line x1="276" y1="259" x2="362" y2="245"/>
+      <line x1="276" y1="291" x2="346" y2="280"/>
+    </g>
+  </g>
+
+  <!-- Status node (the CPU "active" dot motif) -->
+  <circle cx="256" cy="392" r="9" fill="#19ffb2"/>
+  <circle cx="256" cy="392" r="9" fill="none" stroke="#19ffb2" stroke-opacity="0.5" stroke-width="6"/>
+</svg>
