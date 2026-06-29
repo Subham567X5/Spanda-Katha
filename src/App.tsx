@@ -2930,6 +2930,8 @@ export default function App() {
                       </span>
                     </div>
                   </div>
+                </div>
+
                 {/* 3. RIGHT PANEL: Multi-subsystem Interactive Deck (Width: 340px) */}
                 <div className={`transition-all duration-300 ${isRightCollapsed ? 'w-0 overflow-hidden opacity-0 border-l-0 p-0' : 'w-[340px] p-4'} glass-panel border-l border-cyan-950/40 flex flex-col select-none relative overflow-y-auto scrollbar-thin shrink-0`}>
                   
@@ -3887,8 +3889,6 @@ export default function App() {
                   </div>
 
                 </div>
-              </div>
-
               </div>
 
             </div>
