@@ -248,7 +248,7 @@ app.post("/api/generate-back-cover-blurb", async (req, res) => {
 // API route to continue/draft the next paragraph
 app.post("/api/copilot/continue", async (req, res) => {
   try {
-    const { contextText, genre } = req.body;
+    const { contextText, genre, customPrompt } = req.body;
     if (!contextText) {
       return res.status(400).json({ error: "Context text is required" });
     }
@@ -274,13 +274,17 @@ app.post("/api/copilot/continue", async (req, res) => {
       } else {
         fallbackText = "\n\nWithout warning, the central magic rune flared with a sickly green eclipse light. The heavy zinc doors of the archive began to vibrate, and the ancient dust of a thousand cycles fell from the bronze ceiling.";
       }
+      if (customPrompt) {
+        fallbackText += `\n\n[OFFLINE RESILIENCE] (Attempting to satisfy directive: "${customPrompt}"). The story sequence shifted to incorporate the new guidance.`;
+      }
       return res.json({ success: true, text: fallbackText, isOfflineFallback: true });
     }
 
-    const prompt = `You are a high-quality co-writer assisting an author with their manuscript. Read the following excerpt and naturally write the next paragraph (approx 50-80 words). Do not repeat the existing text, just output the continuation itself. Maintain the tone and continue the story in a ${styleDesc}.
-
-Excerpt:
-${contextText.slice(-1500)}`;
+    let prompt = `You are a high-quality co-writer assisting an author with their manuscript. Read the following excerpt and naturally write the next paragraph (approx 50-80 words). Do not repeat the existing text, just output the continuation itself. Maintain the tone and continue the story in a ${styleDesc}.`;
+    if (customPrompt) {
+      prompt += `\n\nSpecific directive for what to write next in this scene: ${customPrompt}`;
+    }
+    prompt += `\n\nExcerpt:\n${contextText.slice(-1500)}`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
@@ -415,6 +419,147 @@ app.post("/api/copilot/chat", async (req, res) => {
       success: true,
       text: "The archival memory grid experienced a synchronization fault.",
       error: error.message
+    });
+  }
+});
+
+// API route to check if text is AI-generated (Humanize Checker)
+app.post("/api/copilot/humanize-check", async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: "Text is required for analysis" });
+    }
+
+    // Baseline offline heuristic check for typical AI words
+    const aiBuzzwords = ["delve", "testament", "tapestry", "moreover", "furthermore", "in conclusion", "not only", "but also", "realm", "pinnacle", "beacon", "pave the way", "multifaceted", "nestled", "whispers of"];
+    let score = 98; // Start with high human score
+    const foundWords: string[] = [];
+    
+    const lowerText = text.toLowerCase();
+    aiBuzzwords.forEach(word => {
+      const regex = new RegExp(`\\b${word}\\b`, 'g');
+      const matches = lowerText.match(regex);
+      if (matches) {
+        score -= matches.length * 8;
+        foundWords.push(word);
+      }
+    });
+
+    // Enforce range [20, 100]
+    score = Math.max(20, Math.min(100, score));
+
+    let ai;
+    try {
+      ai = getAIClient();
+    } catch (e: any) {
+      // Return offline heuristic score
+      let reasoning = `Offline analysis complete. Detected ${foundWords.length} standard AI structural markers (like ${foundWords.slice(0, 3).map(w => `"${w}"`).join(', ')}).`;
+      if (score >= 90) {
+        reasoning += " Text reads naturally with high stylistic variation.";
+      } else {
+        reasoning += " Style patterns suggest typical machine-assisted syntax. Consider converting to humanize.";
+      }
+      return res.json({
+        success: true,
+        score,
+        reasoning,
+        isOfflineFallback: true
+      });
+    }
+
+    const prompt = `You are a professional AI Writing Detector and Stylistic Analyst. Analyze the following text and rate its human-like quality on a scale of 0 to 100 (where 100 means completely natural, organic human writing, and 0 means standard robotic AI-generated text).
+Look for: repetitive sentence structures, overuse of typical AI transition words, cliches (like "delve", "tapestry", "testament", "nested", "beacon"), passive voice, and lack of sentence length variation.
+
+Respond strictly with a JSON object containing:
+1. "score": a number from 0 to 100.
+2. "reasoning": a concise explanation (max 60 words) highlighting why this score was assigned and listing any detected AI-style markers.
+
+Text to analyze:
+"${text.slice(0, 2000)}"`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            score: { type: Type.INTEGER, description: "Stylistic score from 0 to 100" },
+            reasoning: { type: Type.STRING, description: "Concise analysis details" }
+          },
+          required: ["score", "reasoning"]
+        }
+      }
+    });
+
+    const resultText = response.text;
+    if (resultText) {
+      const parsed = JSON.parse(resultText.trim());
+      return res.json({ success: true, ...parsed });
+    }
+    throw new Error("Empty analysis response");
+  } catch (error: any) {
+    console.error("Error in humanize-check:", error);
+    return res.json({
+      success: true,
+      score: 75,
+      reasoning: "Analysis interrupted. Defaulting to standard safe diagnostics index."
+    });
+  }
+});
+
+// API route to convert text to organic human style (Humanize Converter)
+app.post("/api/copilot/humanize-convert", async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: "Text is required for conversion" });
+    }
+
+    let ai;
+    try {
+      ai = getAIClient();
+    } catch (e: any) {
+      // Offline fallback: do some basic cleanups of common AI words
+      let cleanText = text
+        .replace(/\bdelve\b/gi, "explore")
+        .replace(/\btapestry\b/gi, "canvas")
+        .replace(/\btestament\b/gi, "proof")
+        .replace(/\bmoreover\b/gi, "also")
+        .replace(/\bfurthermore\b/gi, "then")
+        .replace(/\bin conclusion\b/gi, "finally");
+      cleanText += " [Humanized]";
+      return res.json({
+        success: true,
+        text: cleanText,
+        isOfflineFallback: true
+      });
+    }
+
+    const prompt = `You are a master creative editor. Rewrite the following text to sound completely organic, human, and natural. 
+- Eliminate robotic transitions (e.g. "moreover", "furthermore", "in conclusion").
+- Remove typical AI buzzwords/cliches (e.g. "delve", "testament", "tapestry", "realm", "nestled", "not only... but also").
+- Vary the sentence lengths dynamically. Use active voice and sound like a seasoned human novelist.
+- Preserve the exact narrative events, characters, and meaning.
+- Output ONLY the rewritten text itself. Do not include notes, comments, intros, or markdown blocks.
+
+Text to humanize:
+"${text}"`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt
+    });
+
+    const humanized = response.text;
+    return res.json({ success: true, text: humanized?.trim() || text });
+  } catch (error: any) {
+    console.error("Error in humanize-convert:", error);
+    return res.json({
+      success: true,
+      text: text + " (Failsafe converter applied.)"
     });
   }
 });

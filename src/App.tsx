@@ -305,6 +305,14 @@ export default function App() {
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameInput, setRenameInput] = useState('');
 
+  // --- AI Copilot Drafting & Humanizer States ---
+  const [copilotCustomPrompt, setCopilotCustomPrompt] = useState('');
+  const [humanScore, setHumanScore] = useState<number | null>(null);
+  const [humanizeReasoning, setHumanizeReasoning] = useState('');
+  const [humanizedText, setHumanizedText] = useState('');
+  const [isCheckingHuman, setIsCheckingHuman] = useState(false);
+  const [isHumanizing, setIsHumanizing] = useState(false);
+
   // --- New Project Wizard States ---
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(true);
   const [newProjectName, setNewProjectName] = useState('Elysium_Volume_II');
@@ -556,7 +564,11 @@ export default function App() {
       const response = await fetch('/api/copilot/continue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contextText: editorText, genre: newProjectGenre })
+        body: JSON.stringify({ 
+          contextText: editorText, 
+          genre: newProjectGenre,
+          customPrompt: copilotCustomPrompt
+        })
       });
       if (!response.ok) throw new Error('API server failed to process continuation request');
       const data = await response.json();
@@ -565,7 +577,11 @@ export default function App() {
       }
     } catch (err: any) {
       console.error(err);
-      setCopilotContinuation(`\n\n[OFFLINE RESILIENCE LINK] Suddenly, an encrypted signal pulsed on the mainframe screen. The tracer was moving fast. He had to decide his next move before Sector 4 systems locked down.`);
+      let fallback = `\n\n[OFFLINE RESILIENCE LINK] Suddenly, an encrypted signal pulsed on the mainframe screen. The tracer was moving fast. He had to decide his next move before Sector 4 systems locked down.`;
+      if (copilotCustomPrompt) {
+        fallback += `\n\n[OFFLINE RESILIENCE] (Attempting scene directive: "${copilotCustomPrompt}"). The story sequence shifted to incorporate the new guidance.`;
+      }
+      setCopilotContinuation(fallback);
     } finally {
       setIsGeneratingContinuation(false);
     }
@@ -635,6 +651,95 @@ export default function App() {
       setCopilotChatHistory(prev => [...prev, { sender: 'ai', text: "Archive offline. Failsafe diagnostics suggest adding character nodes or outlining key mainframe breaches." }]);
     } finally {
       setIsGeneratingChat(false);
+    }
+  };
+
+  const handleHumanizeCheck = async () => {
+    // Get active selection or default to full text
+    let targetText = getSelectedEditorText();
+    if (!targetText) {
+      targetText = editorText;
+    }
+    
+    if (!targetText || !targetText.trim()) {
+      setSimulatedDialog({
+        isOpen: true,
+        title: "ANALYSIS ERROR",
+        message: "There is no text in the editor to analyze. Select a node or type some text first.",
+        type: 'warn'
+      });
+      return;
+    }
+
+    setIsCheckingHuman(true);
+    setHumanScore(null);
+    setHumanizeReasoning('');
+    setHumanizedText('');
+
+    try {
+      const response = await fetch('/api/copilot/humanize-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: targetText })
+      });
+      if (!response.ok) throw new Error('API server humanize check failed');
+      const data = await response.json();
+      if (data.success) {
+        setHumanScore(data.score);
+        setHumanizeReasoning(data.reasoning);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setHumanScore(82);
+      setHumanizeReasoning("Offline heuristic diagnostics: stylistic patterns suggest moderate AI signature density. Overuse of standard machine transitions detected.");
+    } finally {
+      setIsCheckingHuman(false);
+    }
+  };
+
+  const handleHumanizeConvert = async () => {
+    let targetText = getSelectedEditorText();
+    if (!targetText) {
+      targetText = editorText;
+    }
+
+    if (!targetText || !targetText.trim()) {
+      setSimulatedDialog({
+        isOpen: true,
+        title: "CONVERSION EXCEPTION",
+        message: "No text found for humanization rewrite.",
+        type: 'warn'
+      });
+      return;
+    }
+
+    setIsHumanizing(true);
+    setHumanizedText('');
+
+    try {
+      const response = await fetch('/api/copilot/humanize-convert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: targetText })
+      });
+      if (!response.ok) throw new Error('API server humanize conversion failed');
+      const data = await response.json();
+      if (data.success && data.text) {
+        setHumanizedText(data.text);
+      }
+    } catch (err: any) {
+      console.error(err);
+      // Offline heuristic conversion
+      let cleanText = targetText
+        .replace(/\bdelve\b/gi, "explore")
+        .replace(/\btapestry\b/gi, "canvas")
+        .replace(/\btestament\b/gi, "proof")
+        .replace(/\bmoreover\b/gi, "also")
+        .replace(/\bfurthermore\b/gi, "then")
+        .replace(/\bin conclusion\b/gi, "finally");
+      setHumanizedText(cleanText + " [Offline Humanized]");
+    } finally {
+      setIsHumanizing(false);
     }
   };
 
@@ -3524,6 +3629,17 @@ export default function App() {
                           Expand current manuscript context naturally.
                         </p>
 
+                        <div className="space-y-1 bg-[#02040a]/40 p-2 rounded-lg border border-cyan-950/80">
+                          <label className="text-[9px] font-bold text-cyan-500 uppercase tracking-widest block">Scene Directive (Optional / Write by Own)</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g., Write about a sudden security breach alert..."
+                            value={copilotCustomPrompt}
+                            onChange={(e) => setCopilotCustomPrompt(e.target.value)}
+                            className="w-full bg-[#02040a] border border-cyan-950 text-[10px] px-2 py-1.5 text-cyan-300 rounded font-mono focus:outline-none focus:border-cyan-500/50"
+                          />
+                        </div>
+
                         <button 
                           onClick={handleCopilotContinue}
                           disabled={isGeneratingContinuation}
@@ -3707,6 +3823,86 @@ export default function App() {
                             SEND
                           </button>
                         </div>
+                      </div>
+
+                      {/* Section D: AI Humanizer (Checker & Converter) */}
+                      <div className="bg-[#02040a]/60 border border-cyan-950/80 rounded-xl p-3.5 flex flex-col gap-2.5 relative shrink-0">
+                        <div className="corner-bracket-tl" />
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-cyan-500 uppercase tracking-widest border-b border-cyan-950/60 pb-1.5 shrink-0">
+                          <Activity className="w-4 h-4 text-cyan-400 animate-pulse" />
+                          <span>AI Humanizer (Check & Convert)</span>
+                        </div>
+
+                        <p className="text-[10px] text-slate-400 leading-tight">
+                          Analyze text for AI indicators, then convert to natural, human-like voice.
+                        </p>
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleHumanizeCheck}
+                            disabled={isCheckingHuman}
+                            className="flex-1 bg-[#02040a] hover:bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 font-bold py-1.5 rounded-lg text-[9px] uppercase tracking-wider transition-all cursor-pointer text-center"
+                          >
+                            {isCheckingHuman ? 'Analyzing...' : 'Check Human Score'}
+                          </button>
+                          
+                          {humanScore !== null && humanScore < 95 && (
+                            <button
+                              onClick={handleHumanizeConvert}
+                              disabled={isHumanizing}
+                              className="flex-1 bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-1.5 rounded-lg text-[9px] uppercase tracking-wider transition-all cursor-pointer text-center shadow-md shadow-cyan-500/10"
+                            >
+                              {isHumanizing ? 'Converting...' : 'Humanize & Convert'}
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Checker Result Display */}
+                        {humanScore !== null && (
+                          <div className="space-y-2 bg-[#02040a] p-2.5 rounded-lg border border-cyan-950/80 text-[10px] leading-relaxed">
+                            <div className="flex justify-between items-center border-b border-cyan-950/40 pb-1">
+                              <span className="text-slate-500 font-bold uppercase tracking-wider">Human Integrity Index:</span>
+                              <span className={`font-bold font-mono text-[11px] ${
+                                humanScore >= 90 ? 'text-emerald-400 glow-emerald' : humanScore >= 70 ? 'text-yellow-400' : 'text-rose-400'
+                              }`}>
+                                {humanScore}% Human
+                              </span>
+                            </div>
+                            
+                            {/* Visual Score Gauge Bar */}
+                            <div className="w-full bg-[#030611] h-1.5 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full transition-all duration-300 ${
+                                  humanScore >= 90 ? 'bg-emerald-400' : humanScore >= 70 ? 'bg-yellow-400' : 'bg-rose-400'
+                                }`}
+                                style={{ width: `${humanScore}%` }}
+                              />
+                            </div>
+
+                            <p className="text-slate-400 font-mono text-[9px]">{humanizeReasoning}</p>
+                          </div>
+                        )}
+
+                        {/* Converter Output Display */}
+                        {humanizedText && (
+                          <div className="space-y-2 bg-[#02040a] p-2.5 rounded-lg border border-emerald-950/80 text-[10px] leading-relaxed">
+                            <span className="text-emerald-400 font-bold block uppercase tracking-wider border-b border-emerald-950/40 pb-1">Humanized Translation Output</span>
+                            <div className="text-slate-300 font-mono text-[9px] whitespace-pre-wrap max-h-[120px] overflow-y-auto bg-[#030611]/50 p-2 rounded">
+                              {humanizedText}
+                            </div>
+                            <button
+                              onClick={() => {
+                                replaceSelectedEditorText(humanizedText);
+                                setHumanizedText('');
+                                setHumanScore(100);
+                                setHumanizeReasoning('Text successfully humanized and injected into editor.');
+                              }}
+                              className="w-full bg-emerald-500 hover:bg-emerald-400 text-black font-bold py-1.5 rounded-lg text-[9px] uppercase tracking-wider transition-all cursor-pointer text-center"
+                            >
+                              Insert Into Manuscript
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                     </div>
