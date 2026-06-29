@@ -1,0 +1,6 @@
+{
+  "name": "Elysium Writer Workbench",
+  "description": "A PyQt5/PySide2 development workbench and high-fidelity interactive simulator for Elysium Writer, a long-form novel project builder.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
